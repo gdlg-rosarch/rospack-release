@@ -226,8 +226,8 @@ int main(int argc, char **argv)
   char buf[1024];
   std::string rr = std::string(getcwd(buf, sizeof(buf))) + "/test2";
   setenv("ROS_PACKAGE_PATH", rr.c_str(), 1);
-  char *path = getcwd(NULL, 0);
-  if(path)
+  char path[PATH_MAX];
+  if(getcwd(path,sizeof(path)))
   {
     boost::filesystem::path p(path);
     p = p.parent_path();
@@ -238,7 +238,6 @@ int main(int argc, char **argv)
     setenv("PATH", newpath.c_str(), 1);
   }
 
-  free(path);
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
