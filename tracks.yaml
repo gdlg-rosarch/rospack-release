@@ -18,7 +18,7 @@ tracks:
     ros_distro: kinetic
     vcs_type: git
     vcs_uri: https://github.com/ros/rospack.git
-    version: 2.4.4
+    version: 2.5.0
   archlunar:
     actions:
     - bloom-export-upstream :{vcs_local_uri} :{vcs_type} --tag :{release_tag} --display-uri
