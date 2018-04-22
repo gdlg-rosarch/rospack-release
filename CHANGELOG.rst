@@ -2,13 +2,27 @@
 Changelog for package rospack
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-2.4.4 (2017-11-16)
-------------------
-* workaround console_bridge macros (`#85 <https://github.com/ros/rospack/issues/85>`_)
+2.5.0 (2018-01-30)
+-----------
+* skip warning if permission to read directory was denied (`#87 <https://github.com/ros/rospack/issues/87>`_)
 
-2.3.3 (2017-03-06)
+2.4.3 (2017-10-12)
+------------------
+* add README.md with notes about tinyxml2 (`#82 <https://github.com/ros/rospack/issues/82>`_)
+* replace references to deprecated Boost.TR1 (`#80 <https://github.com/ros/rospack/issues/80>`_)
+* fix Python.h redefining pre-processor definitions (`#78 <https://github.com/ros/rospack/issues/78>`_)
+
+2.4.2 (2017-07-27)
+------------------
+
+2.4.1 (2017-02-27)
+------------------
+* fix inverted result code check, regression from 2.4.0 (`#70 <https://github.com/ros/rospack/issues/70>`_)
+
+2.4.0 (2017-02-22)
 ------------------
 * make some deps* functions public (`#65 <https://github.com/ros/rospack/pull/65>`_)
+* switch from TinyXML to TinyXML2 (`#62 <https://github.com/ros/rospack/pull/62>`_)
 
 2.3.2 (2017-02-14)
 ------------------

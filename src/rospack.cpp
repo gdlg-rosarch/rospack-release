@@ -25,9 +25,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Python.h>
 #include "rospack/rospack.h"
 #include "utils.h"
-#include "tinyxml.h"
+#include "tinyxml2.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
@@ -69,8 +70,6 @@
 #include <string.h>
 #include <errno.h>
 
-#include <Python.h>
-
 /* re-define some String functions for python 2.x */
 #if PY_VERSION_HEX < 0x03000000
 #undef PyBytes_AsString
@@ -80,6 +79,8 @@
 #define PyUnicode_AsUTF8 PyString_AsString
 #define PyUnicode_FromString PyString_FromString
 #endif
+
+using namespace tinyxml2;
 
 // TODO:
 //   recrawl on:
@@ -115,7 +116,7 @@ static const int MAX_CRAWL_DEPTH = 1000;
 static const int MAX_DEPENDENCY_DEPTH = 1000;
 static const double DEFAULT_MAX_CACHE_AGE = 60.0;
 
-TiXmlElement* get_manifest_root(Stackage* stackage);
+XMLElement* get_manifest_root(Stackage* stackage);
 double time_since_epoch();
 
 #ifdef __APPLE__
@@ -152,7 +153,7 @@ class Stackage
     // \brief have we already loaded the manifest?
     bool manifest_loaded_;
     // \brief TinyXML structure, filled in during parsing
-    TiXmlDocument manifest_;
+    XMLDocument manifest_;
     std::vector<Stackage*> deps_;
     bool deps_computed_;
     bool is_wet_package_;
@@ -178,20 +179,20 @@ class Stackage
       assert(is_wet_package_);
       assert(manifest_loaded_);
       // get name from package.xml instead of folder name
-      TiXmlElement* root = get_manifest_root(this);
-      for(TiXmlElement* el = root->FirstChildElement("name"); el; el = el->NextSiblingElement("name"))
+      XMLElement* root = get_manifest_root(this);
+      for(XMLElement* el = root->FirstChildElement("name"); el; el = el->NextSiblingElement("name"))
       {
         name_ = el->GetText();
         break;
       }
       // Get license texts, where there may be multiple elements for.
       std::string tagname_license = "license";
-      for(TiXmlElement* el = root->FirstChildElement(tagname_license); el; el = el->NextSiblingElement(tagname_license ))
+      for(XMLElement* el = root->FirstChildElement(tagname_license.c_str()); el; el = el->NextSiblingElement(tagname_license.c_str()))
       {
         licenses_.push_back(el->GetText());
       }
       // check if package is a metapackage
-      for(TiXmlElement* el = root->FirstChildElement("export"); el; el = el->NextSiblingElement("export"))
+      for(XMLElement* el = root->FirstChildElement("export"); el; el = el->NextSiblingElement("export"))
       {
         if(el->FirstChildElement("metapackage"))
         {
@@ -258,7 +259,7 @@ Rosstackage::~Rosstackage()
 
 void Rosstackage::clearStackages()
 {
-  for(std::tr1::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
+  for(boost::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
       it != stackages_.end();
       ++it)
   {
@@ -348,7 +349,12 @@ Rosstackage::isStackage(const std::string& path)
   }
   catch(fs::filesystem_error& e)
   {
-    logWarn(std::string("error while crawling ") + path + ": " + e.what());
+    // suppress logging of error message if reading of directory failed
+    // due to missing permission
+    if(e.code().value() != EACCES)
+    {
+      logWarn(std::string("error while crawling ") + path + ": " + e.what() + ";  " + e.code().message());
+    }
   }
   return false;
 }
@@ -381,7 +387,7 @@ Rosstackage::crawl(std::vector<std::string> search_path,
   search_paths_ = search_path;
 
   std::vector<DirectoryCrawlRecord*> dummy;
-  std::tr1::unordered_set<std::string> dummy2;
+  boost::unordered_set<std::string> dummy2;
   for(std::vector<std::string>::const_iterator p = search_paths_.begin();
       p != search_paths_.end();
       ++p)
@@ -446,7 +452,7 @@ Rosstackage::contents(const std::string& name,
                       std::set<std::string>& packages)
 {
   Rospack rp2;
-  std::tr1::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.find(name);
+  boost::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.find(name);
   if(it != stackages_.end())
   {
     std::vector<std::string> search_paths;
@@ -473,7 +479,7 @@ Rosstackage::contains(const std::string& name,
                       std::string& path)
 {
   Rospack rp2;
-  for(std::tr1::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
+  for(boost::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
       it != stackages_.end();
       ++it)
   {
@@ -502,7 +508,7 @@ Rosstackage::contains(const std::string& name,
 void
 Rosstackage::list(std::set<std::pair<std::string, std::string> >& list)
 {
-  for(std::tr1::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
+  for(boost::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
       it != stackages_.end();
       ++it)
   {
@@ -518,7 +524,7 @@ Rosstackage::listDuplicates(std::vector<std::string>& dups)
 {
   dups.resize(dups_.size());
   int i = 0;
-  for(std::tr1::unordered_map<std::string, std::vector<std::string> >::const_iterator it = dups_.begin();
+  for(boost::unordered_map<std::string, std::vector<std::string> >::const_iterator it = dups_.begin();
       it != dups_.end();
       ++it)
   {
@@ -531,7 +537,7 @@ void
 Rosstackage::listDuplicatesWithPaths(std::map<std::string, std::vector<std::string> >& dups)
 {
   dups.clear();
-  for(std::tr1::unordered_map<std::string, std::vector<std::string> >::const_iterator it = dups_.begin();
+  for(boost::unordered_map<std::string, std::vector<std::string> >::const_iterator it = dups_.begin();
       it != dups_.end();
       ++it)
   {
@@ -597,7 +603,7 @@ Rosstackage::depsIndent(const std::string& name, bool direct,
   {
     computeDeps(stackage);
     std::vector<Stackage*> deps_vec;
-    std::tr1::unordered_set<Stackage*> deps_hash;
+    boost::unordered_set<Stackage*> deps_hash;
     std::vector<std::string> indented_deps;
     gatherDepsFull(stackage, direct, POSTORDER, 0, deps_hash, deps_vec, true, indented_deps);
     for(std::vector<std::string>::const_iterator it = indented_deps.begin();
@@ -730,8 +736,8 @@ Rosstackage::rosdeps(const std::string& name, bool direct,
 void
 Rosstackage::_rosdeps(Stackage* stackage, std::set<std::string>& rosdeps, const char* tag_name)
 {
-  TiXmlElement* root = get_manifest_root(stackage);
-  for(TiXmlElement* ele = root->FirstChildElement(tag_name);
+  XMLElement* root = get_manifest_root(stackage);
+  for(XMLElement* ele = root->FirstChildElement(tag_name);
       ele;
       ele = ele->NextSiblingElement(tag_name))
   {
@@ -773,8 +779,8 @@ Rosstackage::vcs(const std::string& name, bool direct,
         it != deps_vec.end();
         ++it)
     {
-      TiXmlElement* root = get_manifest_root(*it);
-      for(TiXmlElement* ele = root->FirstChildElement(MANIFEST_TAG_VERSIONCONTROL);
+      XMLElement* root = get_manifest_root(*it);
+      for(XMLElement* ele = root->FirstChildElement(MANIFEST_TAG_VERSIONCONTROL);
           ele;
           ele = ele->NextSiblingElement(MANIFEST_TAG_VERSIONCONTROL))
       {
@@ -1015,16 +1021,16 @@ Rosstackage::exports_dry_package(Stackage* stackage, const std::string& lang,
                      const std::string& attrib,
                      std::vector<std::string>& flags)
 {
-  TiXmlElement* root = get_manifest_root(stackage);
-  for(TiXmlElement* ele = root->FirstChildElement(MANIFEST_TAG_EXPORT);
+  XMLElement* root = get_manifest_root(stackage);
+  for(XMLElement* ele = root->FirstChildElement(MANIFEST_TAG_EXPORT);
       ele;
       ele = ele->NextSiblingElement(MANIFEST_TAG_EXPORT))
   {
     bool os_match = false;
     const char *best_match = NULL;
-    for(TiXmlElement* ele2 = ele->FirstChildElement(lang);
+    for(XMLElement* ele2 = ele->FirstChildElement(lang.c_str());
         ele2;
-        ele2 = ele2->NextSiblingElement(lang))
+        ele2 = ele2->NextSiblingElement(lang.c_str()))
     {
       const char *os_str;
       if ((os_str = ele2->Attribute("os")))
@@ -1088,7 +1094,7 @@ Rosstackage::plugins(const std::string& name, const std::string& attrib,
   if(!depsOnDetail(name, true, stackages, true))
     return false;
   // Also look in the package itself
-  std::tr1::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.find(name);
+  boost::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.find(name);
   if(it != stackages_.end())
   {
     // don't warn here; it was done in depsOnDetail()
@@ -1101,7 +1107,7 @@ Rosstackage::plugins(const std::string& name, const std::string& attrib,
     std::vector<Stackage*> top_deps;
     if(!depsDetail(top, false, top_deps))
       return false;
-    std::tr1::unordered_set<Stackage*> top_deps_set;
+    boost::unordered_set<Stackage*> top_deps_set;
     for(std::vector<Stackage*>::iterator it = top_deps.begin();
         it != top_deps.end();
         ++it)
@@ -1121,14 +1127,14 @@ Rosstackage::plugins(const std::string& name, const std::string& attrib,
       it != stackages.end();
       ++it)
   {
-    TiXmlElement* root = get_manifest_root(*it);
-    for(TiXmlElement* ele = root->FirstChildElement(MANIFEST_TAG_EXPORT);
+    XMLElement* root = get_manifest_root(*it);
+    for(XMLElement* ele = root->FirstChildElement(MANIFEST_TAG_EXPORT);
         ele;
         ele = ele->NextSiblingElement(MANIFEST_TAG_EXPORT))
     {
-      for(TiXmlElement* ele2 = ele->FirstChildElement(name);
+      for(XMLElement* ele2 = ele->FirstChildElement(name.c_str());
           ele2;
-          ele2 = ele2->NextSiblingElement(name))
+          ele2 = ele2->NextSiblingElement(name.c_str()))
       {
         const char *att_str;
         if((att_str = ele2->Attribute(attrib.c_str())))
@@ -1291,7 +1297,7 @@ Rosstackage::depsOnDetail(const std::string& name, bool direct,
   }
   try
   {
-    for(std::tr1::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
+    for(boost::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
         it != stackages_.end();
         ++it)
     {
@@ -1326,7 +1332,7 @@ Rosstackage::profile(const std::vector<std::string>& search_path,
 {
   double start = time_since_epoch();
   std::vector<DirectoryCrawlRecord*> dcrs;
-  std::tr1::unordered_set<std::string> dcrs_hash;
+  boost::unordered_set<std::string> dcrs_hash;
   for(std::vector<std::string>::const_iterator p = search_path.begin();
       p != search_path.end();
       ++p)
@@ -1436,7 +1442,7 @@ Rosstackage::crawlDetail(const std::string& path,
                          int depth,
                          bool collect_profile_data,
                          std::vector<DirectoryCrawlRecord*>& profile_data,
-                         std::tr1::unordered_set<std::string>& profile_hash)
+                         boost::unordered_set<std::string>& profile_hash)
 {
   if(depth > MAX_CRAWL_DEPTH)
     throw Exception("maximum depth exceeded during crawl");
@@ -1532,7 +1538,12 @@ Rosstackage::crawlDetail(const std::string& path,
   }
   catch(fs::filesystem_error& e)
   {
-    logWarn(std::string("error while crawling ") + path + ": " + e.what());
+    // suppress logging of error message if reading of directory failed
+    // due to missing permission
+    if(e.code().value() != EACCES)
+    {
+      logWarn(std::string("error while crawling ") + path + ": " + e.what());
+    }
   }
 
   if(collect_profile_data && dcr != NULL)
@@ -1552,7 +1563,7 @@ Rosstackage::loadManifest(Stackage* stackage)
   if(stackage->manifest_loaded_)
     return;
 
-  if(!stackage->manifest_.LoadFile(stackage->manifest_path_))
+  if(stackage->manifest_.LoadFile(stackage->manifest_path_.c_str()) != XML_SUCCESS)
   {
     std::string errmsg = std::string("error parsing manifest of package ") +
             stackage->name_ + " at " + stackage->manifest_path_;
@@ -1598,14 +1609,14 @@ Rosstackage::computeDeps(Stackage* stackage, bool ignore_errors, bool ignore_mis
 void
 Rosstackage::computeDepsInternal(Stackage* stackage, bool ignore_errors, const std::string& depend_tag, bool ignore_missing)
 {
-  TiXmlElement* root;
+  XMLElement* root;
   root = get_manifest_root(stackage);
 
-  TiXmlNode *dep_node = NULL;
   const char* dep_pkgname;
-  while((dep_node = root->IterateChildren(depend_tag, dep_node)))
+  for(XMLElement *dep_ele = root->FirstChildElement(depend_tag.c_str());
+      dep_ele;
+      dep_ele = dep_ele->NextSiblingElement(depend_tag.c_str()))
   {
-    TiXmlElement *dep_ele = dep_node->ToElement();
     if (!stackage->is_wet_package_)
     {
       dep_pkgname = dep_ele->Attribute(tag_.c_str());
@@ -1785,7 +1796,7 @@ Rosstackage::gatherDeps(Stackage* stackage, bool direct,
                         std::vector<Stackage*>& deps,
                         bool no_recursion_on_wet)
 {
-  std::tr1::unordered_set<Stackage*> deps_hash;
+  boost::unordered_set<Stackage*> deps_hash;
   std::vector<std::string> indented_deps;
   gatherDepsFull(stackage, direct, order, 0,
                  deps_hash, deps, false, indented_deps, no_recursion_on_wet);
@@ -1794,7 +1805,7 @@ Rosstackage::gatherDeps(Stackage* stackage, bool direct,
 void
 _gatherDepsFull(Stackage* stackage, bool direct,
                             traversal_order_t order, int depth,
-                            std::tr1::unordered_set<Stackage*>& deps_hash,
+                            boost::unordered_set<Stackage*>& deps_hash,
                             std::vector<Stackage*>& deps,
                             bool get_indented_deps,
                             std::vector<std::string>& indented_deps,
@@ -1880,7 +1891,7 @@ _gatherDepsFull(Stackage* stackage, bool direct,
 void
 Rosstackage::gatherDepsFull(Stackage* stackage, bool direct,
                             traversal_order_t order, int depth,
-                            std::tr1::unordered_set<Stackage*>& deps_hash,
+                            boost::unordered_set<Stackage*>& deps_hash,
                             std::vector<Stackage*>& deps,
                             bool get_indented_deps,
                             std::vector<std::string>& indented_deps,
@@ -2067,7 +2078,7 @@ Rosstackage::writeCache()
       {
         char *rpp = getenv("ROS_PACKAGE_PATH");
         fprintf(cache, "#ROS_PACKAGE_PATH=%s\n", (rpp ? rpp : ""));
-        for(std::tr1::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
+        for(boost::unordered_map<std::string, Stackage*>::const_iterator it = stackages_.begin();
             it != stackages_.end();
             ++it)
           fprintf(cache, "%s\n", it->second->path_.c_str());
@@ -2327,10 +2338,10 @@ std::string Rosstack::get_manifest_type()
   return "stack";
 }
 
-TiXmlElement*
+XMLElement*
 get_manifest_root(Stackage* stackage)
 {
-  TiXmlElement* ele = stackage->manifest_.RootElement();
+  XMLElement* ele = stackage->manifest_.RootElement();
   if(!ele)
   {
     std::string errmsg = std::string("error parsing manifest of package ") +

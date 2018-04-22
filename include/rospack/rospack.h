@@ -105,8 +105,8 @@ and Rosstack.
 #ifndef ROSPACK_ROSPACK_H
 #define ROSPACK_ROSPACK_H
 
-#include <boost/tr1/unordered_set.hpp>
-#include <boost/tr1/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
+#include <boost/unordered_map.hpp>
 #include <list>
 #include <map>
 #include <set>
@@ -119,52 +119,6 @@ and Rosstack.
   #include "rospack/rospack_backcompat.h"
 #endif
 
-// this is working around a problem coming from console_bridge < 0.4
-// which defines macros with the names `logWarn` and `logError`
-// which collide with the function names in this file
-// this will declare the namespaced version of the macros if they don't exist
-// and remove the two short macros which collide with the API in this file
-#ifndef CONSOLE_BRIDGE_logError  // class_loader < 0.3
-  #ifdef logError  // class_loader < 0.4 was included
-    // avoid using the short macro to define the long, it is being removed below
-    #define CONSOLE_BRIDGE_logError(fmt, ...)  \
-      console_bridge::log(__FILE__, __LINE__, console_bridge::CONSOLE_BRIDGE_LOG_ERROR, fmt, ##__VA_ARGS__)
-  #endif
-#endif
-#ifdef logError  // class_loader < 0.4 was included
-  // otherwise the function name in this file is replaced by the macro
-  #undef logError
-#endif
-
-#ifndef CONSOLE_BRIDGE_logWarn  // class_loader < 0.3
-  #ifdef logWarn  // class_loader < 0.4 was included
-    // avoid using the short macro to define the long, it is being removed below
-    #define CONSOLE_BRIDGE_logWarn(fmt, ...)  \
-      console_bridge::log(__FILE__, __LINE__, console_bridge::CONSOLE_BRIDGE_LOG_WARN, fmt, ##__VA_ARGS__)
-  #endif
-#endif
-#ifdef logWarn  // class_loader < 0.4 was included
-  // otherwise the function name in this file is replaced by the macro
-  #undef logWarn
-#endif
-
-#ifndef CONSOLE_BRIDGE_logInform  // class_loader < 0.3
-  #ifdef logInform  // class_loader < 0.4 was included
-    // only provided for consistency
-    #define CONSOLE_BRIDGE_logInform(fmt, ...)  \
-      console_bridge::log(__FILE__, __LINE__, console_bridge::CONSOLE_BRIDGE_LOG_INFO, fmt, ##__VA_ARGS__)
-    // no immediate need to undefine since this is not used in this API
-  #endif
-#endif
-
-#ifndef CONSOLE_BRIDGE_logDebug  // class_loader < 0.3
-  #ifdef logDebug  // class_loader < 0.4 was included
-    // only provided for consistency
-    #define CONSOLE_BRIDGE_logDebug(fmt, ...)  \
-      console_bridge::log(__FILE__, __LINE__, console_bridge::CONSOLE_BRIDGE_LOG_DEBUG, fmt, ##__VA_ARGS__)
-    // no immediate need to undefine since this is not used in this API
-  #endif
-#endif
 
 namespace rospack
 {
@@ -194,8 +148,8 @@ class ROSPACK_DECL Rosstackage
     std::string tag_;
     bool quiet_;
     std::vector<std::string> search_paths_;
-    std::tr1::unordered_map<std::string, std::vector<std::string> > dups_;
-    std::tr1::unordered_map<std::string, Stackage*> stackages_;
+    boost::unordered_map<std::string, std::vector<std::string> > dups_;
+    boost::unordered_map<std::string, Stackage*> stackages_;
     Stackage* findWithRecrawl(const std::string& name);
     void log(const std::string& level, const std::string& msg, bool append_errno);
     void clearStackages();
@@ -205,7 +159,7 @@ class ROSPACK_DECL Rosstackage
                      int depth,
                      bool collect_profile_data,
                      std::vector<DirectoryCrawlRecord*>& profile_data,
-                     std::tr1::unordered_set<std::string>& profile_hash);
+                     boost::unordered_set<std::string>& profile_hash);
     bool isStackage(const std::string& path);
     void loadManifest(Stackage* stackage);
     void computeDeps(Stackage* stackage, bool ignore_errors=false, bool ignore_missing=false);
@@ -217,7 +171,7 @@ class ROSPACK_DECL Rosstackage
                     bool no_recursion_on_wet=false);
     void gatherDepsFull(Stackage* stackage, bool direct,
                         traversal_order_t order, int depth,
-                        std::tr1::unordered_set<Stackage*>& deps_hash,
+                        boost::unordered_set<Stackage*>& deps_hash,
                         std::vector<Stackage*>& deps,
                         bool get_indented_deps,
                         std::vector<std::string>& indented_deps,
